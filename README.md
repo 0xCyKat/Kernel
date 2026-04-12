@@ -4,6 +4,10 @@ Manage Everything
 
 A unified personal dashboard to beautifully track daily habits, gym progress, and finances all in one place.
 
+### Preview
+
+![Kernel App Demo](./assets/screenshots/app_demo.gif)
+
 ### Built With
 
 ![Flutter](https://img.shields.io/badge/Flutter-%2302569B.png?style=for-the-badge&logo=flutter&logoColor=white)
