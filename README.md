@@ -1,8 +1,11 @@
 # Kernel
 
-A unified personal tracking application for managing daily Finance, Habits, and Gym routines.
+Manage Everything
 
-## Tech Stack
-- **Framework:** Flutter
-- **Backend:** Firebase
+A unified personal dashboard to beautifully track daily habits, gym progress, and finances all in one place.
 
+### Built With
+
+![Flutter](https://img.shields.io/badge/Flutter-%2302569B.png?style=for-the-badge&logo=flutter&logoColor=white)
+![Dart](https://img.shields.io/badge/Dart-%230175C2.png?style=for-the-badge&logo=dart&logoColor=white)
+![Firebase](https://img.shields.io/badge/Firebase-%23FFCA28.png?style=for-the-badge&logo=firebase&logoColor=black)
