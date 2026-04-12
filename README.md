@@ -1,13 +1,13 @@
-# Kernel
+# Kernel: Manage Everything
 
-Manage Everything
+
 
 A unified personal dashboard to beautifully track daily habits, gym progress, and finances all in one place.
 
 ### Preview
 
 <p align="center">
-  <img src="./assets/screenshots/app_demo.gif" alt="Kernel App Demo" width="200" height="auto" />
+  <img src="./assets/screenshots/app_demo.gif" alt="Kernel App Demo" width="250" height="540" style="object-fit: contain;" />
 </p>
 
 ### Built With
