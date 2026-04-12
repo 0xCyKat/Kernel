@@ -6,7 +6,9 @@ A unified personal dashboard to beautifully track daily habits, gym progress, an
 
 ### Preview
 
-![Kernel App Demo](./assets/screenshots/app_demo.gif)
+<p align="center">
+  <img src="./assets/screenshots/app_demo.gif" alt="Kernel App Demo" width="200" height="auto" />
+</p>
 
 ### Built With
 
