@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/finance_service.dart';
-import 'package:intl/intl.dart';
+import '../utils/constants.dart';
 import 'finance/finance_log_view.dart';
 import 'finance/finance_stats_view.dart';
 import 'finance/add_expense_sheet.dart';
@@ -14,11 +14,6 @@ class FinanceScreen extends StatefulWidget {
 }
 
 class _FinanceScreenState extends State<FinanceScreen> {
-  final NumberFormat _currencyFormat = NumberFormat.currency(
-    locale: 'en_IN',
-    symbol: '₹',
-  );
-
   void _previousMonth() {
     final svc = context.read<FinanceService>();
     svc.changeMonth(
@@ -41,19 +36,21 @@ class _FinanceScreenState extends State<FinanceScreen> {
         return StatefulBuilder(
           builder: (context, setState) {
             return AlertDialog(
+              backgroundColor: AppColors.surfaceLighter,
+              surfaceTintColor: Colors.transparent,
               title: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.arrow_back),
+                    icon: const Icon(Icons.arrow_back_rounded, color: AppColors.textPrimary),
                     onPressed: () => setState(() => selectedYear--),
                   ),
                   Text(
                     selectedYear.toString(),
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.arrow_forward),
+                    icon: const Icon(Icons.arrow_forward_rounded, color: AppColors.textPrimary),
                     onPressed: () => setState(() => selectedYear++),
                   ),
                 ],
@@ -79,24 +76,25 @@ class _FinanceScreenState extends State<FinanceScreen> {
                         );
                         Navigator.pop(context);
                       },
+                      borderRadius: BorderRadius.circular(12),
                       child: Container(
                         margin: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
                           color: isSelected
-                              ? Theme.of(context).colorScheme.primary
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(8),
+                              ? AppColors.textPrimary
+                              : const Color(0xFF27272A),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                         alignment: Alignment.center,
                         child: Text(
-                          DateFormat('MMM').format(monthDate),
+                          AppUtils.formatMonthYear(monthDate).split(' ')[0], // Just MMM
                           style: TextStyle(
                             color: isSelected
-                                ? Theme.of(context).colorScheme.onPrimary
-                                : null,
+                                ? AppColors.background
+                                : AppColors.textSecondary,
                             fontWeight: isSelected
-                                ? FontWeight.bold
-                                : FontWeight.normal,
+                                ? FontWeight.w800
+                                : FontWeight.w600,
                           ),
                         ),
                       ),
@@ -113,106 +111,127 @@ class _FinanceScreenState extends State<FinanceScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Scaffold(
-      body: DefaultTabController(
-        length: 2,
-        child: SafeArea(
-          child: Column(
-            children: [
-              Consumer<FinanceService>(
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+              child: Consumer<FinanceService>(
                 builder: (context, financeService, _) {
                   final total = financeService.expenses.fold(
                     0.0,
                     (sum, exp) => sum + exp.amount,
                   );
-                  return Card(
-                    margin: const EdgeInsets.all(16),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.chevron_left),
-                                onPressed: _previousMonth,
-                              ),
-                              InkWell(
-                                onTap: () => _showMonthPicker(
-                                  context,
-                                  financeService.currentMonth,
-                                ),
-                                borderRadius: BorderRadius.circular(8),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12.0,
-                                    vertical: 8.0,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Text(
-                                        DateFormat(
-                                          'MMM yyyy',
-                                        ).format(financeService.currentMonth),
-                                        style: theme.textTheme.titleMedium,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      const Icon(
-                                        Icons.calendar_today,
-                                        size: 16,
-                                      ),
-                                    ],
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  "TOTAL EXPENSES",
+                                  style: TextStyle(
+                                    color: AppColors.textMuted,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 1.5,
                                   ),
                                 ),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.chevron_right),
-                                onPressed: _nextMonth,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Total Expenses',
-                            style: theme.textTheme.labelMedium?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
+                                const SizedBox(height: 4),
+                                FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    AppUtils.currencyFormat.format(total),
+                                    style: const TextStyle(
+                                      color: AppColors.textPrimary,
+                                      fontSize: 40,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: -2.0,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _currencyFormat.format(total),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.headlineMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.redAccent,
+                          const SizedBox(width: 16),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceLighter,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.chevron_left_rounded, color: AppColors.textSecondary),
+                                  onPressed: _previousMonth,
+                                ),
+                                InkWell(
+                                  onTap: () => _showMonthPicker(context, financeService.currentMonth),
+                                  child: Text(
+                                    AppUtils.formatMonthYear(financeService.currentMonth),
+                                    style: const TextStyle(
+                                      color: AppColors.textPrimary,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.chevron_right_rounded, color: AppColors.textSecondary),
+                                  onPressed: _nextMonth,
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
-                    ),
+                    ],
                   );
                 },
               ),
-              const TabBar(
-                tabs: [
-                  Tab(text: 'Log'),
-                  Tab(text: 'Stats'),
-                ],
-              ),
-              const Expanded(
-                child: TabBarView(
-                  children: [FinanceLogView(), FinanceStatsView()],
+            ),
+            const SizedBox(height: 24),
+            Expanded(
+              child: DefaultTabController(
+                length: 2,
+                child: Column(
+                  children: [
+                    Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 20),
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceLighter,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const TabBar(
+                        tabs: [
+                          Tab(text: 'Log'),
+                          Tab(text: 'Stats'),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Expanded(
+                      child: TabBarView(
+                        children: [FinanceLogView(), FinanceStatsView()],
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
       floatingActionButton: FloatingActionButton(
+        backgroundColor: AppColors.textPrimary,
+        elevation: 4,
         onPressed: () {
           showModalBottomSheet(
             context: context,
@@ -220,8 +239,9 @@ class _FinanceScreenState extends State<FinanceScreen> {
             builder: (context) => const AddExpenseSheet(),
           );
         },
-        child: const Icon(Icons.add),
+        child: const Icon(Icons.add_rounded, color: AppColors.background, size: 28),
       ),
     );
   }
 }
+

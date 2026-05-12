@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -13,6 +14,11 @@ class FinanceService extends ChangeNotifier {
   List<Expense> _yearlyExpenses = [];
   List<FinanceCategory> _customCategories = [];
   List<String> _customPaymentTypes = [];
+
+  StreamSubscription? _expenseSub;
+  StreamSubscription? _yearlyExpenseSub;
+  StreamSubscription? _categorySub;
+  StreamSubscription? _paymentSub;
 
   List<Expense> get expenses => _expenses;
   List<Expense> get yearlyExpenses => _yearlyExpenses;
@@ -41,12 +47,27 @@ class FinanceService extends ChangeNotifier {
         _loadPaymentTypes();
         _listenToExpenses();
       } else {
+        _cancelAllSubscriptions();
         _expenses = [];
+        _yearlyExpenses = [];
         _customCategories = [];
         _customPaymentTypes = [];
         notifyListeners();
       }
     });
+  }
+
+  void _cancelAllSubscriptions() {
+    _expenseSub?.cancel();
+    _yearlyExpenseSub?.cancel();
+    _categorySub?.cancel();
+    _paymentSub?.cancel();
+  }
+
+  @override
+  void dispose() {
+    _cancelAllSubscriptions();
+    super.dispose();
   }
 
   void changeMonth(DateTime month) {
@@ -58,6 +79,9 @@ class FinanceService extends ChangeNotifier {
     final user = _auth.currentUser;
     if (user == null) return;
 
+    _expenseSub?.cancel();
+    _yearlyExpenseSub?.cancel();
+
     final start = DateTime(_currentMonth.year, _currentMonth.month, 1);
     final end = DateTime(
       _currentMonth.year,
@@ -65,7 +89,7 @@ class FinanceService extends ChangeNotifier {
       1,
     ).subtract(const Duration(milliseconds: 1));
 
-    _db
+    _expenseSub = _db
         .collection('users')
         .doc(user.uid)
         .collection('expenses')
@@ -87,7 +111,7 @@ class FinanceService extends ChangeNotifier {
       1,
     ).subtract(const Duration(milliseconds: 1));
 
-    _db
+    _yearlyExpenseSub = _db
         .collection('users')
         .doc(user.uid)
         .collection('expenses')
@@ -107,7 +131,8 @@ class FinanceService extends ChangeNotifier {
     final user = _auth.currentUser;
     if (user == null) return;
 
-    _db
+    _categorySub?.cancel();
+    _categorySub = _db
         .collection('users')
         .doc(user.uid)
         .collection('finance_categories')
@@ -124,7 +149,8 @@ class FinanceService extends ChangeNotifier {
     final user = _auth.currentUser;
     if (user == null) return;
 
-    _db
+    _paymentSub?.cancel();
+    _paymentSub = _db
         .collection('users')
         .doc(user.uid)
         .collection('finance_payments')

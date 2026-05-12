@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
-import '../services/habits_service.dart';
+import 'package:flutter/services.dart';
 import '../services/gym_service.dart';
 import '../services/finance_service.dart';
 import '../widgets/weekly_calendar.dart';
+import '../widgets/bento_card.dart';
+import '../utils/constants.dart';
+import 'finance/add_expense_sheet.dart';
+
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,28 +20,19 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   DateTime _selectedDate = DateTime.now();
 
-  String _dateKey(DateTime date) {
-    return "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
+  String _getGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return "Good morning";
+    if (hour < 17) return "Good afternoon";
+    return "Good evening";
   }
 
   @override
   Widget build(BuildContext context) {
-    final habitsService = context.watch<HabitsService>();
     final gymService = context.watch<GymService>();
     final financeService = context.watch<FinanceService>();
 
-    final dateKey = _dateKey(_selectedDate);
-
-    // Habits calculation
-    final allHabits = habitsService.habits;
-    final logForDay = habitsService.logs[dateKey] ?? <String>{};
-    final completedHabitsCount = allHabits
-        .where((h) => logForDay.contains(h))
-        .length;
-    final totalHabitsCount = allHabits.length;
-    final double habitProgress = totalHabitsCount == 0
-        ? 0
-        : completedHabitsCount / totalHabitsCount;
+    final dateKey = AppUtils.dateKey(_selectedDate);
 
     // Gym Calculation
     final gymWeight = gymService.weightLogs[dateKey];
@@ -50,7 +45,29 @@ class _HomeScreenState extends State<HomeScreen> {
     }).toList();
     final totalExpense = dayExpenses.fold(0.0, (sum, e) => sum + e.amount);
 
-    final currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
+    // Sparkline - Finance (Last 7 days)
+    final financeSparkline = <double>[];
+    double maxFinance = 0;
+    for (int i = 6; i >= 0; i--) {
+      final d = _selectedDate.subtract(Duration(days: i));
+      final totalForDay = financeService.expenses
+          .where((e) =>
+              e.date.year == d.year &&
+              e.date.month == d.month &&
+              e.date.day == d.day)
+          .fold(0.0, (s, e) => s + e.amount);
+      if (totalForDay > maxFinance) maxFinance = totalForDay;
+      financeSparkline.add(totalForDay);
+    }
+
+    // Sparkline - Gym (Last 7 days)
+    final gymSparkline = <double>[];
+    for (int i = 6; i >= 0; i--) {
+      final d = _selectedDate.subtract(Duration(days: i));
+      final dk = AppUtils.dateKey(d);
+      final w = gymService.weightLogs[dk];
+      gymSparkline.add(w ?? 0.0); // Safe fallback
+    }
 
     return SafeArea(
       child: Padding(
@@ -61,6 +78,7 @@ class _HomeScreenState extends State<HomeScreen> {
             WeeklyCalendar(
               selectedDate: _selectedDate,
               onDateSelected: (date) {
+                HapticFeedback.lightImpact();
                 setState(() => _selectedDate = date);
                 // Also trigger FinanceService to fetch selected month if we navigate outside
                 if (date.month != financeService.currentMonth.month ||
@@ -70,131 +88,256 @@ class _HomeScreenState extends State<HomeScreen> {
               },
             ),
             const SizedBox(height: 32),
+            const Text(
+              "Overview",
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 4),
             Text(
-              "Summary",
+              _getGreeting(),
               style: ShadTheme.of(context).textTheme.large.copyWith(
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 fontWeight: FontWeight.bold,
+                letterSpacing: -0.5,
               ),
             ),
             const SizedBox(height: 16),
             Expanded(
-              child: ListView(
-                children: [
-                  _buildSummaryCard(
-                    context: context,
-                    title: "Habits",
-                    icon: Icons.checklist_rtl,
-                    iconColor: Colors.blueAccent,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    Row(
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              "$completedHabitsCount / $totalHabitsCount Completed",
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                              ),
+                        Expanded(
+                          child: BentoCard(
+                            title: "Gym",
+                            icon: Icons.fitness_center,
+                            iconColor: AppColors.textPrimary,
+                            sparklineData: gymSparkline,
+                            sparklineColor: AppColors.accentIndigo,
+                            height: 180,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                TweenAnimationBuilder<double>(
+                                  key: ValueKey("gym_${AppUtils.dateKey(_selectedDate)}"),
+                                  tween: Tween<double>(begin: 0, end: gymWeight ?? 0),
+                                  duration: const Duration(milliseconds: 600),
+                                  curve: Curves.easeOutCubic,
+                                  builder: (context, val, child) {
+                                    return Text(
+                                      gymWeight != null
+                                          ? "${val.toStringAsFixed(1)} kg"
+                                          : "Train!",
+                                      style: TextStyle(
+                                        color: gymWeight != null
+                                            ? AppColors.textPrimary
+                                            : AppColors.textSecondary,
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: -0.5,
+                                      ),
+                                    );
+                                  },
+                                ),
+                                if (gymWeight != null) ...[
+                                  const SizedBox(height: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF27272A),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: const Text(
+                                      "Logged",
+                                      style: TextStyle(
+                                        color: AppColors.textPrimary,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
-                            Text(
-                              "${(habitProgress * 100).toInt()}%",
-                              style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 16,
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
-                        const SizedBox(height: 12),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: LinearProgressIndicator(
-                            value: habitProgress,
-                            minHeight: 8,
-                            backgroundColor: Colors.white10,
-                            color: Colors.blueAccent,
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () {
+                              HapticFeedback.lightImpact();
+                              showModalBottomSheet(
+                                context: context,
+                                isScrollControlled: true,
+                                builder: (context) => AddExpenseSheet(
+                                  initialDate: _selectedDate,
+                                ),
+                              );
+                            },
+                            child: BentoCard(
+                              title: "Quick Add",
+                              icon: Icons.add_circle_outline,
+                              iconColor: AppColors.textPrimary,
+                              height: 180,
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  const Color(0xFF27272A),
+                                  AppColors.background.withValues(alpha: 0.8),
+                                ],
+                              ),
+                              child: const Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    "Expense",
+                                    style: TextStyle(
+                                      color: AppColors.textPrimary,
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: -0.5,
+                                    ),
+                                  ),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    "Tap to log",
+                                    style: TextStyle(
+                                      color: AppColors.textSecondary,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildSummaryCard(
-                    context: context,
-                    title: "Gym",
-                    icon: Icons.fitness_center,
-                    iconColor: Colors.orangeAccent,
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Text(
-                          gymWeight != null
-                              ? "${gymWeight.toStringAsFixed(1)} kg"
-                              : "Train!",
-                          style: TextStyle(
-                            color: gymWeight != null
-                                ? Colors.white
-                                : Colors.white38,
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
+                    const SizedBox(height: 16),
+                    BentoCard(
+                      title: "Finance",
+                      icon: Icons.account_balance_wallet,
+                      iconColor: AppColors.textPrimary,
+                      sparklineData: financeSparkline,
+                      sparklineColor: AppColors.accentPink,
+                      maxY: maxFinance,
+                      height: 180,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TweenAnimationBuilder<double>(
+                            key: ValueKey("fin_${AppUtils.dateKey(_selectedDate)}"),
+                            tween: Tween<double>(begin: 0, end: totalExpense),
+                            duration: const Duration(milliseconds: 700),
+                            curve: Curves.easeOutCubic,
+                            builder: (context, val, child) {
+                              return Text(
+                                AppUtils.currencyFormat.format(val),
+                                style: const TextStyle(
+                                  color: AppColors.textPrimary,
+                                  fontSize: 32,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: -1.0,
+                                ),
+                              );
+                            },
                           ),
-                        ),
-                        if (gymWeight != null) ...[
-                          const SizedBox(width: 12),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.white10,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Text(
-                              "Logged",
-                              style: TextStyle(
-                                color: Colors.greenAccent,
-                                fontSize: 12,
-                              ),
+                          const SizedBox(height: 6),
+                          Text(
+                            "${dayExpenses.length} transactions",
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
                         ],
-                      ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildSummaryCard(
-                    context: context,
-                    title: "Finance",
-                    icon: Icons.account_balance_wallet,
-                    iconColor: Colors.greenAccent,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          currencyFormat.format(totalExpense),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                          ),
+                    if (dayExpenses.isNotEmpty) ...[
+                      const SizedBox(height: 32),
+                      const Text(
+                        "Today's Logs",
+                        style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: -0.5,
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          "${dayExpenses.length} transactions",
-                          style: const TextStyle(
-                            color: Colors.white54,
-                            fontSize: 14,
+                      ),
+                      const SizedBox(height: 16),
+                      ...dayExpenses.take(3).map((expense) {
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: AppColors.borderSubtle),
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                ],
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surfaceLighter,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Icon(Icons.receipt_long, color: AppColors.textSecondary, size: 18),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      expense.name,
+                                      style: const TextStyle(
+                                        color: AppColors.textPrimary,
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      expense.paymentType,
+                                      style: const TextStyle(
+                                        color: AppColors.textSecondary,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Text(
+                                AppUtils.currencyFormat.format(expense.amount),
+                                style: const TextStyle(
+                                  color: AppColors.textPrimary,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                    ],
+                    const SizedBox(height: 24),
+                  ],
+                ),
               ),
             ),
           ],
@@ -202,49 +345,5 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-
-  Widget _buildSummaryCard({
-    required BuildContext context,
-    required String title,
-    required IconData icon,
-    required Color iconColor,
-    required Widget child,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xCC111111), // glassy dark
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white10, width: 1),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: iconColor.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: iconColor, size: 24),
-              ),
-              const SizedBox(width: 16),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          child,
-        ],
-      ),
-    );
-  }
 }
+

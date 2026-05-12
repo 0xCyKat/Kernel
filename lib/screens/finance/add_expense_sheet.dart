@@ -1,27 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 import '../../services/finance_service.dart';
 import '../../models/expense.dart';
-import '../../models/finance_category.dart';
-import 'package:intl/intl.dart';
+import '../../utils/constants.dart';
 import '../../widgets/loading_overlay.dart';
 
 class AddExpenseSheet extends StatefulWidget {
   final Expense? existingExpense;
+  final DateTime? initialDate;
 
-  const AddExpenseSheet({super.key, this.existingExpense});
+  const AddExpenseSheet({super.key, this.existingExpense, this.initialDate});
 
   @override
   State<AddExpenseSheet> createState() => _AddExpenseSheetState();
 }
 
 class _AddExpenseSheetState extends State<AddExpenseSheet> {
-  final _formKey = GlobalKey<FormState>();
+  final _formKey = GlobalKey<ShadFormState>();
 
-  late TextEditingController _nameCtrl;
-  late TextEditingController _amountCtrl;
-  late TextEditingController _descCtrl;
+  late String _name;
+  late double _amount;
 
   late String _selectedCategoryId;
   late DateTime _selectedDate;
@@ -31,36 +31,27 @@ class _AddExpenseSheetState extends State<AddExpenseSheet> {
   void initState() {
     super.initState();
     final e = widget.existingExpense;
-    _nameCtrl = TextEditingController(text: e?.name ?? '');
-    _amountCtrl = TextEditingController(text: e?.amount.toString() ?? '');
-    _descCtrl = TextEditingController(text: e?.description ?? '');
+    _name = e?.name ?? '';
+    _amount = e?.amount ?? 0.0;
     _selectedCategoryId = e?.categoryId ?? 'others';
-    _selectedDate = e?.date ?? DateTime.now();
+    _selectedDate = e?.date ?? widget.initialDate ?? DateTime.now();
     _selectedPaymentType = e?.paymentType ?? 'UPI';
-  }
-
-  @override
-  void dispose() {
-    _nameCtrl.dispose();
-    _amountCtrl.dispose();
-    _descCtrl.dispose();
-    super.dispose();
   }
 
   void _save() async {
     if (!_formKey.currentState!.validate()) return;
+    _formKey.currentState!.save();
 
     final svc = context.read<FinanceService>();
-    final amount = double.tryParse(_amountCtrl.text) ?? 0.0;
 
     final expense = Expense(
       id: widget.existingExpense?.id ?? const Uuid().v4(),
-      name: _nameCtrl.text,
+      name: _name,
       categoryId: _selectedCategoryId,
-      description: _descCtrl.text,
+      description: '', // Simplified as desc is optional and was removed from form
       date: _selectedDate,
       paymentType: _selectedPaymentType,
-      amount: amount,
+      amount: _amount,
     );
 
     LoadingOverlay.show(context);
@@ -91,18 +82,6 @@ class _AddExpenseSheetState extends State<AddExpenseSheet> {
     }
   }
 
-  Future<void> _pickDate() async {
-    final date = await showDatePicker(
-      context: context,
-      initialDate: _selectedDate,
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2100),
-    );
-    if (date != null) {
-      setState(() => _selectedDate = date);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
@@ -120,140 +99,152 @@ class _AddExpenseSheetState extends State<AddExpenseSheet> {
       _selectedPaymentType = 'Cash';
     }
 
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 16,
-        right: 16,
-        top: 16,
-        bottom: 16 + bottomInset,
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      child: Form(
+      padding: EdgeInsets.only(
+        left: 24,
+        right: 24,
+        top: 24,
+        bottom: 24 + bottomInset,
+      ),
+      child: ShadForm(
         key: _formKey,
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                widget.existingExpense == null ? 'Add Expense' : 'Edit Expense',
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _nameCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Name',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (v) => v!.isEmpty ? 'Enter name' : null,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _amountCtrl,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: const InputDecoration(
-                  labelText: 'Amount (₹)',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (v) => double.tryParse(v ?? '') == null
-                    ? 'Enter valid amount'
-                    : null,
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      isExpanded: true,
-                      value: _selectedCategoryId,
-                      decoration: const InputDecoration(
-                        labelText: 'Category',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: categories.map((c) {
-                        return DropdownMenuItem(
-                          value: c.id,
-                          child: Row(
-                            children: [
-                              Icon(
-                                IconData(
-                                  c.iconCodePoint,
-                                  fontFamily: 'MaterialIcons',
-                                ),
-                                size: 16,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(c.name),
-                            ],
-                          ),
-                        );
-                      }).toList(),
-                      onChanged: (v) =>
-                          setState(() => _selectedCategoryId = v!),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      isExpanded: true,
-                      value: _selectedPaymentType,
-                      decoration: const InputDecoration(
-                        labelText: 'Payment',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: paymentTypes
-                          .map(
-                            (p) => DropdownMenuItem(value: p, child: Text(p)),
-                          )
-                          .toList(),
-                      onChanged: (v) =>
-                          setState(() => _selectedPaymentType = v!),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              ListTile(
-                title: Text(
-                  'Date: ${DateFormat('yyyy-MM-dd').format(_selectedDate)}',
-                ),
-                trailing: const Icon(Icons.calendar_today),
-                shape: RoundedRectangleBorder(
-                  side: BorderSide(color: Colors.grey.shade700),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                onTap: _pickDate,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _descCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Description (Optional)',
-                  border: OutlineInputBorder(),
-                ),
-                maxLines: 2,
-              ),
-              const SizedBox(height: 24),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
+                  Text(
+                    widget.existingExpense == null ? 'Add Expense' : 'Edit Expense',
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
                   if (widget.existingExpense != null)
-                    TextButton.icon(
-                      icon: const Icon(Icons.delete, color: Colors.redAccent),
-                      label: const Text(
-                        'Delete',
-                        style: TextStyle(color: Colors.redAccent),
-                      ),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline_rounded, color: AppColors.error),
                       onPressed: _delete,
-                    )
-                  else
-                    const SizedBox.shrink(),
-                  ElevatedButton(onPressed: _save, child: const Text('Save')),
+                    ),
                 ],
+              ),
+              const SizedBox(height: 24),
+              ShadInputFormField(
+                id: 'name',
+                initialValue: _name,
+                label: const Text('Expense Name'),
+                placeholder: const Text('e.g. Starbucks Coffee'),
+                onSaved: (v) => _name = v ?? '',
+                validator: (v) => v!.isEmpty ? 'Please enter a name' : null,
+              ),
+              const SizedBox(height: 16),
+              ShadInputFormField(
+                id: 'amount',
+                initialValue: _amount == 0.0 ? '' : _amount.toString(),
+                label: const Text('Amount (₹)'),
+                placeholder: const Text('0.00'),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                onSaved: (v) => _amount = double.tryParse(v ?? '') ?? 0.0,
+                validator: (v) => double.tryParse(v ?? '') == null ? 'Enter valid amount' : null,
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Category', style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+                        const SizedBox(height: 8),
+                        ShadSelect<String>(
+                          initialValue: _selectedCategoryId,
+                          options: categories.map((c) => ShadOption(
+                            value: c.id,
+                            child: Row(
+                              children: [
+                                Icon(IconData(c.iconCodePoint, fontFamily: 'MaterialIcons'), size: 16),
+                                const SizedBox(width: 8),
+                                Text(c.name),
+                              ],
+                            ),
+                          )).toList(),
+                          selectedOptionBuilder: (context, value) {
+                            final cat = categories.firstWhere((c) => c.id == value);
+                            return Text(cat.name);
+                          },
+                          onChanged: (v) => setState(() => _selectedCategoryId = v!),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Payment', style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+                        const SizedBox(height: 8),
+                        ShadSelect<String>(
+                          initialValue: _selectedPaymentType,
+                          options: paymentTypes.map((p) => ShadOption(value: p, child: Text(p))).toList(),
+                          selectedOptionBuilder: (context, value) => Text(value ?? ''),
+                          onChanged: (v) => setState(() => _selectedPaymentType = v!),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              const Text('Date', style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+              const SizedBox(height: 8),
+              InkWell(
+                onTap: () async {
+                  final date = await showDatePicker(
+                    context: context,
+                    initialDate: _selectedDate,
+                    firstDate: DateTime(2000),
+                    lastDate: DateTime(2100),
+                  );
+                  if (date != null) setState(() => _selectedDate = date);
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: AppColors.border),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        AppUtils.formatDate(_selectedDate).split(',')[0],
+                        style: const TextStyle(color: AppColors.textPrimary),
+                      ),
+                      const Icon(Icons.calendar_today_rounded, size: 18, color: AppColors.textSecondary),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 32),
+              SizedBox(
+                width: double.infinity,
+                child: ShadButton(
+                  onPressed: _save,
+                  backgroundColor: AppColors.textPrimary,
+                  child: Text(
+                    widget.existingExpense == null ? 'Add Expense' : 'Update Expense',
+                    style: const TextStyle(color: AppColors.background, fontWeight: FontWeight.bold),
+                  ),
+                ),
               ),
             ],
           ),
