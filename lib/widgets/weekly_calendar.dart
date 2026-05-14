@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
 import '../utils/constants.dart';
 
 class WeeklyCalendar extends StatelessWidget {
@@ -13,45 +12,32 @@ class WeeklyCalendar extends StatelessWidget {
     required this.onDateSelected,
   });
 
-  void _showMonthCalendar(BuildContext context) {
-    showShadDialog(
+  void _showMonthCalendar(BuildContext context) async {
+    final DateTime? pickedDate = await showDatePicker(
       context: context,
-      builder: (context) => ShadDialog(
-        title: const Text(
-          'Select a Date',
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-            letterSpacing: -0.5,
-            fontSize: 20,
-          ),
-        ),
-        radius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.border),
-        backgroundColor: AppColors.background,
-        padding: const EdgeInsets.all(24),
-        child: Padding(
-          padding: const EdgeInsets.only(top: 8.0),
-          child: ShadCalendar(
-            selected: selectedDate,
-            onChanged: (v) {
-              if (v != null) {
-                HapticFeedback.mediumImpact();
-                onDateSelected(v);
-                Navigator.of(context).pop();
-              }
-            },
-            decoration: ShadDecoration(
-              border: ShadBorder.all(color: AppColors.borderSubtle, width: 1, radius: BorderRadius.circular(16)),
-              color: AppColors.surface,
+      initialDate: selectedDate,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: AppColors.textPrimary, // Header background color
+              onPrimary: AppColors.background, // Header text color
+              surface: AppColors.surface, // Background color
+              onSurface: AppColors.textPrimary, // Text color
             ),
-            dayButtonVariant: ShadButtonVariant.ghost,
-            selectedDayButtonVariant: ShadButtonVariant.primary,
-            todayButtonVariant: ShadButtonVariant.outline,
-            showOutsideDays: true,
+            dialogBackgroundColor: AppColors.surface,
           ),
-        ),
-      ),
+          child: child!,
+        );
+      },
     );
+
+    if (pickedDate != null) {
+      HapticFeedback.mediumImpact();
+      onDateSelected(pickedDate);
+    }
   }
 
   @override
