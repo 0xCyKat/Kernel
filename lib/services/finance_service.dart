@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../models/expense.dart';
 import '../models/finance_category.dart';
 import 'package:flutter/material.dart';
+import '../models/finance_palette.dart';
 
 class FinanceService extends ChangeNotifier {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -14,6 +15,7 @@ class FinanceService extends ChangeNotifier {
   List<Expense> _yearlyExpenses = [];
   List<FinanceCategory> _customCategories = [];
   List<String> _customPaymentTypes = [];
+  String _selectedPaletteId = 'default';
 
   StreamSubscription? _expenseSub;
   StreamSubscription? _yearlyExpenseSub;
@@ -22,6 +24,8 @@ class FinanceService extends ChangeNotifier {
 
   List<Expense> get expenses => _expenses;
   List<Expense> get yearlyExpenses => _yearlyExpenses;
+  String get selectedPaletteId => _selectedPaletteId;
+  FinancePalette get selectedPalette => FinancePalette.getPalette(_selectedPaletteId);
 
   List<FinanceCategory> get categories {
     final map = <String, FinanceCategory>{};
@@ -43,6 +47,7 @@ class FinanceService extends ChangeNotifier {
   FinanceService() {
     _auth.authStateChanges().listen((user) {
       if (user != null) {
+        _loadPalettePreference();
         _loadCategories();
         _loadPaymentTypes();
         _listenToExpenses();
@@ -287,5 +292,31 @@ class FinanceService extends ChangeNotifier {
         orElse: () => categories.first,
       ),
     );
+  }
+
+  void setPalette(String paletteId) {
+    _selectedPaletteId = paletteId;
+    notifyListeners();
+    _savePalettePreference(paletteId);
+  }
+
+  Future<void> _loadPalettePreference() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+    
+    final doc = await _db.collection('users').doc(user.uid).get();
+    if (doc.exists && doc.data()!.containsKey('finance_palette')) {
+      _selectedPaletteId = doc.data()!['finance_palette'] as String;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _savePalettePreference(String paletteId) async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+    
+    await _db.collection('users').doc(user.uid).set({
+      'finance_palette': paletteId,
+    }, SetOptions(merge: true));
   }
 }

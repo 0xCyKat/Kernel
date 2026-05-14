@@ -6,6 +6,7 @@ import '../../services/finance_service.dart';
 import '../../models/expense.dart';
 import '../../utils/constants.dart';
 import 'package:intl/intl.dart';
+import 'palette_selector_sheet.dart';
 
 class FinanceStatsView extends StatefulWidget {
   const FinanceStatsView({super.key});
@@ -34,16 +35,7 @@ class _FinanceStatsViewState extends State<FinanceStatsView> {
         final sortedCategories = categoryTotals.keys.toList()
           ..sort((a, b) => categoryTotals[b]!.compareTo(categoryTotals[a]!));
 
-        final colors = [
-          AppColors.accentIndigo,
-          const Color(0xFF34D399), // Calm Emerald
-          const Color(0xFFFB923C), // Warm Amber
-          AppColors.accentPink,
-          const Color(0xFF60A5FA), // Sky Blue
-          const Color(0xFFA78BFA), // Smooth Violet
-          const Color(0xFF2DD4BF), // Pleasant Teal
-          const Color(0xFFFB7185), // Dusty Rose
-        ];
+        final colors = financeService.selectedPalette.colors;
 
         return SingleChildScrollView(
           padding: const EdgeInsets.only(bottom: 32),
@@ -227,6 +219,21 @@ class _FinanceStatsViewState extends State<FinanceStatsView> {
               setState(() => _isYearly = true);
             }
           }),
+          const SizedBox(width: 4),
+          IconButton(
+            onPressed: () {
+              showModalBottomSheet(
+                context: context,
+                backgroundColor: Colors.transparent,
+                builder: (context) => const PaletteSelectorSheet(),
+              );
+            },
+            icon: const Icon(Icons.palette_outlined, color: AppColors.textSecondary, size: 20),
+            style: IconButton.styleFrom(
+              backgroundColor: const Color(0xFF27272A),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
         ],
       ),
     );
